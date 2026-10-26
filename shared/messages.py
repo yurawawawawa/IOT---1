@@ -84,12 +84,12 @@ class Command:
     def from_json(cls, payload: str | bytes) -> "Command":
         data = json_object(payload)
         action = data.get("action")
-        if action not in ("REQUEST_STATUS", "SAFE", "NEED_HELP", "ACKNOWLEDGE", "ARM", "DISARM"):
+        if action not in ("JOIN", "REQUEST_STATUS", "SAFE", "NEED_HELP", "ACKNOWLEDGE", "ARM", "DISARM"):
             raise ValueError("Action tidak dikenal")
         actor = data.get("actor")
         if actor not in (*DEVICES, "dashboard"):
             raise ValueError("Actor tidak dikenal")
-        event_id = "" if action in ("ARM", "DISARM") else identifier(data.get("event_id"), "event_id")
+        event_id = "" if action in ("JOIN", "ARM", "DISARM") else identifier(data.get("event_id"), "event_id")
         return cls(
             identifier(data.get("command_id"), "command_id"), action, actor, event_id,
             integer(data.get("sent_at_ms"), "sent_at_ms", 0, 2**53 - 1),

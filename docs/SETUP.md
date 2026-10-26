@@ -25,15 +25,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe detector.py
 ```
 
-Buka **http://localhost:8000/?view=dashboard**. ID kelompok dan URL broker otomatis diisi dari konfigurasi laptop. Klik **Hubungkan dashboard**. Tunggu keterangan **Detector aktif**.
+Buka **http://localhost:8000/?view=dashboard**. ID awal dan URL broker diisi dari konfigurasi laptop. Ganti ID dengan ruang yang digunakan kedua HP jika berbeda, klik **Hubungkan dashboard**, dan tunggu **Detector aktif**.
 
-`scripts/setup_env.py` membuat `.env` dengan `PROJECT_ID` unik dan tidak menimpa konfigurasi yang sudah ada. Untuk mengubah ID, broker, atau ambang deteksi, edit `.env`, lalu restart detector.
+`scripts/setup_env.py` membuat `.env` dengan ID awal dashboard dan tidak menimpa konfigurasi yang sudah ada. Kedua HP boleh membuat ID lain secara langsung di halaman HP Edge; tidak perlu mengubah `.env` atau restart detector untuk mengganti ruang. ID harus sama persis, 1–80 karakter berupa huruf ASCII, angka, `_`, atau `-`, dan bersifat case-sensitive. Perubahan broker atau ambang deteksi tetap memerlukan edit `.env` dan restart detector.
 
 Dashboard di jaringan yang sama bisa dibuka melalui `http://IP_LAPTOP:8000/?view=dashboard`. Temukan IPv4 WiFi laptop menggunakan `ipconfig`. Bila diblokir, izinkan Python pada jaringan privat di Windows Firewall. Jangan gunakan URL HTTP ini untuk sensor HP.
 
 ## 2. Buka halaman sensor di dua HP
 
 Upload **seluruh isi folder `web/`**, termasuk `vendor/`, ke hosting statis HTTPS milik kelompok. Contoh cara manual: masukkan folder `web` ke layanan deploy statis seperti Netlify Drop. Hosting belum dibuat oleh proyek ini; URL di bawah adalah placeholder.
+
+Jika Netlify Drop menampilkan kegagalan build pada halaman Agent runs, buka Project overview dan pilih folder pada bagian Already built it. Upload folder `web` langsung. Folder ini menyertakan `netlify.toml` dengan publish directory `.` dan perintah build sederhana karena BuddyCheck sudah berupa file statis. `exit code 2` saja belum menjelaskan akar kegagalan; periksa Deploy log bila masih gagal.
 
 Paket siap upload juga dapat dibuat dengan `.\.venv\Scripts\python.exe -m scripts.package_web`, menghasilkan `dist/buddycheck-web.zip` dengan `index.html` di akar arsip. Paket ini hanya berisi aset web dan lisensi, tanpa `.env`.
 
@@ -45,11 +47,15 @@ https://HOSTING-KELOMPOK/?view=phone&role=edge2
 Di HP A:
 
 1. Pilih **HP A — Pengguna pertama**.
-2. Isi ID kelompok persis seperti yang dicetak detector / di `.env`.
+2. Buat ID kelompok, misalnya `pendaki_07`. ID ini boleh berbeda dari ID awal detector.
 3. Samakan URL WSS dengan `MQTT_WS_URL` di `.env`.
 4. Klik **Mulai sensor & hubungkan** dan izinkan sensor gerak jika diminta.
 
 Ulangi di HP B dengan peran **HP B — Pengguna kedua**. Peran harus berbeda. Pastikan angka sampel accelerometer dan gyroscope bertambah di kedua HP dan dashboard menunjukkan **2/2 perangkat aktif**.
+
+Gunakan ID dan broker yang sama di kedua HP. Pada dashboard, pilih ID tersebut untuk melihat aktivitasnya. Room dibuat otomatis saat perangkat bergabung atau mengirim telemetri; data, kejadian, cooldown, dan perintah dari ID lain disimpan terpisah. Satu detector melayani maksimal 32 ruang aktif. Ruang tanpa pesan masuk selama 15 menit dibersihkan; halaman baru mengirim JOIN berkala selama terhubung.
+
+Pada panel **Konfirmasi kondisi**, tekan **Tes bunyi & getar** untuk mengaktifkan audio dari interaksi langsung dan memeriksa notifikasi di masing-masing HP. Permintaan status masuk menghasilkan pola getar tiga kali pada browser yang mendukungnya, tiga bunyi pendek, serta banner **ARE YOU OK?** dengan tombol untuk membuka kartu permintaan. Safari iPhone menggunakan bunyi dan banner karena getaran web tidak tersedia. Periksa volume HP dan pertahankan layar/tab tetap aktif.
 
 Pertahankan layar dan tab browser tetap aktif. Browser dapat menghentikan sensor saat layar terkunci atau aplikasi dipindah ke latar belakang. Halaman tidak membuat data pengganti ketika sensor tidak tersedia. [Referensi izin sensor](https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent/requestPermission_static).
 
@@ -103,7 +109,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:integration
 ```
 
-Tes membuka tiga konteks browser (A, B, dashboard), menjalankan detector Python, dan memeriksa alur aman, perlu bantuan, timeout, offline, serta jeda deteksi. Tidak mengirim data uji ke broker publik. Screenshot pengujian tersimpan di `test-results/` dan diabaikan Git.
+Tes membuka dua halaman HP dan dua dashboard untuk ruang berbeda, menjalankan detector Python, dan memeriksa alur aman, perlu bantuan, timeout, offline, jeda deteksi, serta isolasi antar-ID. ID pengujian berbeda dari nilai awal `.env`. Tidak mengirim data uji ke broker publik. Screenshot pengujian tersimpan di `test-results/` dan diabaikan Git.
 
 Saat server lokal berjalan, `npm.cmd run test:visual` memeriksa aset, error browser, dan lebar halaman pada desktop, tablet, serta dua ukuran HP. Screenshot berada di `test-results/hiking-*.png`.
 
@@ -113,7 +119,7 @@ Lihat [rencana uji fisik](TESTING.md), [arsitektur dan kontrak MQTT](ARCHITECTUR
 
 ## Alternatif Android: Termux
 
-Jika browser tidak mengekspos sensor tetapi HP memiliki kedua sensor fisik, gunakan Termux + Termux:API. Di Termux pasang `python`, `git`, dan `termux-api`, install `requirements.txt`, dan samakan `.env` dengan laptop.
+Jika browser tidak mengekspos sensor tetapi HP memiliki kedua sensor fisik, gunakan Termux + Termux:API. Di Termux pasang `python`, `git`, dan `termux-api`, install `requirements.txt`, lalu set `PROJECT_ID` pada masing-masing HP ke ID ruang yang sama dan samakan konfigurasi brokernya. ID awal pada laptop boleh berbeda.
 
 ```sh
 python edge.py --device edge1

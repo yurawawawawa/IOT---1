@@ -16,15 +16,18 @@ DEFAULT_HOST = "broker.hivemq.com"
 DEFAULT_PROJECT_ID = "buddycheck_ganti_dengan_id_kelompok"
 
 
-def project_id() -> str:
-    candidate = os.environ.get("PROJECT_ID", DEFAULT_PROJECT_ID)
+def validate_project_id(candidate: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]{1,80}", candidate) is None:
         raise ValueError("PROJECT_ID harus 1–80 karakter: huruf ASCII, angka, _ atau -")
     return candidate
 
 
-def topic(suffix: str) -> str:
-    return "/".join(("buddycheck", project_id(), suffix))
+def project_id() -> str:
+    return validate_project_id(os.environ.get("PROJECT_ID", DEFAULT_PROJECT_ID))
+
+
+def topic(suffix: str, group: str | None = None) -> str:
+    return "/".join(("buddycheck", project_id() if group is None else validate_project_id(group), suffix))
 
 
 @dataclass(frozen=True)

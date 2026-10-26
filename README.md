@@ -20,6 +20,8 @@ Saat beraktivitas bersama, gerakan tidak biasa pada salah satu pengguna bisa lup
 
 Kedua HP memiliki peran setara: A dapat memeriksa B, dan B dapat memeriksa A.
 
+**ID kelompok bebas dibuat pengguna**, misalnya `pendaki_07` atau `jalanbareng123`. Kedua HP terhubung ke ruang yang sama jika ID dan brokernya sama, dengan peran A/B berbeda. Detector membuat ruang otomatis; `PROJECT_ID` di `.env` hanya ID awal dashboard. Masukkan ID ruang yang sama di dashboard untuk memantaunya.
+
 ## Cara kerja
 
 ```text
@@ -44,6 +46,8 @@ B dan dashboard menerima hasil konfirmasi
 
 **Dashboard** menampilkan aktivitas kedua HP dan mengatur jeda deteksi. **HP Edge** membaca sensor serta menyediakan tombol permintaan dan jawaban status. Detector Python tetap harus berjalan di laptop.
 
+Saat permintaan status masuk, HP penerima mendapat pola getar tiga kali pada browser yang mendukungnya, tiga bunyi pendek, dan banner **ARE YOU OK?**. Tombol **Tes bunyi & getar** tersedia di panel Konfirmasi kondisi. Safari iPhone tidak menyediakan getaran web; gunakan bunyi dan tampilan visual. Layar serta tab harus tetap aktif, dan bunyi dapat dibisukan melalui tombol di panel yang sama.
+
 ## Menjalankan proyek
 
 Siapkan Python **3.10+**, laptop, dua HP dengan accelerometer dan gyroscope, serta internet. Untuk demo, sambungkan ketiga perangkat ke WiFi/hotspot yang sama.
@@ -57,7 +61,7 @@ cd IOT---1
 .\run.bat
 ```
 
-`setup.bat` memasang dependensi dan membuat `.env` dengan ID kelompok unik. `run.bat` menjalankan detector dan server dashboard. Biarkan terminalnya terbuka selama pengujian.
+`setup.bat` memasang dependensi dan membuat `.env` dengan ID awal dashboard. `run.bat` menjalankan detector untuk semua ruang dan server dashboard. Biarkan terminalnya terbuka selama pengujian.
 
 Buka [dashboard lokal](http://localhost:8000/?view=dashboard), klik **Hubungkan dashboard**, dan tunggu **Detector aktif**.
 
@@ -66,10 +70,10 @@ Buka [dashboard lokal](http://localhost:8000/?view=dashboard), klik **Hubungkan 
 1. Upload folder **`web/`** beserta seluruh isinya ke hosting statis **HTTPS** milik kelompok.
 2. Buka link hosting di kedua HP, lalu pilih **HP Edge**.
 3. Pilih peran **HP A** di HP pertama dan **HP B** di HP kedua.
-4. Isi ID kelompok sesuai `PROJECT_ID` di `.env`. Samakan URL broker dengan `MQTT_WS_URL`.
+4. Buat ID kelompok yang sama di kedua HP, lalu samakan URL broker dengan `MQTT_WS_URL`. ID boleh berbeda dari `.env`.
 5. Klik **Mulai sensor & hubungkan**, lalu izinkan sensor gerak.
 
-Pastikan sampel accelerometer dan gyroscope bertambah, serta dashboard menunjukkan **2/2 perangkat aktif**. Pertahankan layar dan tab browser tetap terbuka. Halaman sensor HP memerlukan HTTPS; alamat HTTP laptop digunakan untuk dashboard.
+Di dashboard, masukkan ID yang digunakan kedua HP lalu hubungkan. Pastikan sampel accelerometer dan gyroscope bertambah, serta dashboard menunjukkan **2/2 perangkat aktif**. Pertahankan layar dan tab browser tetap terbuka. Halaman sensor HP memerlukan HTTPS; alamat HTTP laptop digunakan untuk dashboard.
 
 Paket hosting dapat dibuat dengan:
 

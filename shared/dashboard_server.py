@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from mimetypes import guess_type
 import os
+import socket
 from pathlib import Path
 from threading import Thread
 from urllib.parse import unquote, urlsplit
@@ -19,8 +20,19 @@ def public_browser_config() -> dict:
         websocket = "wss://broker.hivemq.com:8884/mqtt"
     return {
         "project_id": project_id(), "websocket_url": websocket,
+        "room_mode": "multi",
         "automatic_connection": bool(websocket and not os.environ.get("MQTT_USERNAME", "").strip()),
     }
+
+
+class DashboardServer(ThreadingHTTPServer):
+    # Windows otherwise permits a second process to reuse a listening address.
+    allow_reuse_address = not hasattr(socket, "SO_EXCLUSIVEADDRUSE")
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class DashboardHTTP(BaseHTTPRequestHandler):
@@ -66,7 +78,7 @@ class DashboardHTTP(BaseHTTPRequestHandler):
 def start_dashboard_server(port: int | None = None):
     address = os.environ.get("DASHBOARD_HOST", "0.0.0.0")
     selected_port = int(os.environ.get("DASHBOARD_PORT", "8000")) if port is None else port
-    server = ThreadingHTTPServer((address, selected_port), DashboardHTTP)
+    server = DashboardServer((address, selected_port), DashboardHTTP)
     worker = Thread(name="buddycheck-http", target=server.serve_forever, daemon=True)
     worker.start()
     return server, worker

@@ -1,0 +1,5 @@
+# BuddyCheck is a pre-built HTML/CSS/JavaScript site.
+# This file travels with the web-only upload, so its publish directory is '.'.
+[build]
+  publish = "."
+  command = "echo 'BuddyCheck static files are ready'"

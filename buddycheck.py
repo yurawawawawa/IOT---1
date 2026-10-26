@@ -9,6 +9,10 @@ import uuid
 from shared.messages import Command, DEVICES, Telemetry
 
 
+class SensorSessionConflict(ValueError):
+    """A sender continues using a role that another sensor session replaced."""
+
+
 @dataclass(frozen=True)
 class Config:
     impact_peak: float = 8.0
@@ -67,7 +71,11 @@ class BuddyCheck:
                 if reading.sequence <= previous.sequence or reading.sent_at_ms <= previous.sent_at_ms:
                     raise ValueError("Telemetri duplikat atau di luar urutan")
             elif reading.boot_id in device.retired_boots:
-                raise ValueError("Sesi sensor lama sudah berakhir")
+                label = "HP A" if reading.device_id == "edge1" else "HP B"
+                raise SensorSessionConflict(
+                    f"Sesi {label} digantikan sesi lain dalam ID kelompok yang sama. "
+                    "Tutup tab sensor lain yang memakai peran ini; gunakan HP A di satu HP dan HP B di HP lainnya."
+                )
             else:
                 # A new browser/Termux session cannot inherit an old impact.
                 device.retired_boots.append(previous.boot_id)

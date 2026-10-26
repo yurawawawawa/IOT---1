@@ -35,13 +35,15 @@
     <section class="station-heading"><div><p class="eyebrow">YOUR BUDDY, ONE CHECK AWAY</p><h2>POS PANTAU<span>.</span></h2></div><p>Cek koneksi. Pantau aktivitas.<br>Pastikan kabar teman seperjalanan.</p><span id="sessionLabel" class="station-tag">BASECAMP / LIVE CHECK-IN</span></section>
 
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="incomingRequest" class="incoming-request" role="alert" hidden><div><strong>ARE YOU OK?</strong><p id="incomingRequestText">Temanmu meminta konfirmasi kondisi.</p></div><button id="viewRequest" type="button" class="button secondary">Lihat permintaan ↗</button></div>
     <div class="workspace">
       <aside class="setup-column">
         <section class="panel setup-panel">
           <div class="section-heading"><div><p class="eyebrow">SIAPKAN PERJALANAN</p><h2>Hubungkan perangkat</h2></div><span class="step-number">01</span></div>
+          <p id="roomSummary" class="room-summary" role="status" hidden></p>
           <form id="setupForm">
             <label id="roleLabel">Perangkat ini<select id="role"><option value="edge1">HP A — Pengguna pertama</option><option value="edge2">HP B — Pengguna kedua</option></select></label>
-            <label>ID kelompok<input id="project" placeholder="buddycheck_kelompok_07" required pattern="[A-Za-z0-9_-]{1,80}" maxlength="80" autocomplete="off"><small>Samakan ID pada kedua HP dan laptop.</small></label>
+            <label>ID kelompok<input id="project" placeholder="contoh: pendaki_07" required pattern="[A-Za-z0-9_-]{1,80}" maxlength="80" autocomplete="off" aria-describedby="projectHelp"><small id="projectHelp">Buat ID sendiri dengan huruf, angka, _ atau -. Samakan di kedua HP.</small></label>
             <label>MQTT WebSocket URL<input id="broker" type="url" value="wss://broker.hivemq.com:8884/mqtt" required spellcheck="false"></label>
             <details id="privateBroker"><summary>Broker dengan akun</summary><label>Username<input id="username" autocomplete="username"></label><label>Password<input id="password" type="password" autocomplete="off"></label></details>
             <p id="sensorHint" class="setup-hint">Buka melalui <strong>HTTPS</strong> di HP, izinkan sensor gerak, dan biarkan layar serta tab tetap aktif.</p>
@@ -71,6 +73,7 @@
 
         <section class="panel events-panel">
           <div class="section-heading"><div><p class="eyebrow">CHECK IN. KEEP GOING.</p><h2>Konfirmasi kondisi</h2></div><span id="eventCount" class="count-pill">0 kejadian</span></div>
+          <div id="notificationControls" class="notification-controls"><div class="notification-buttons"><button id="testNotification" type="button" class="button small secondary">Tes bunyi & getar</button><button id="soundToggle" type="button" class="button small secondary" aria-pressed="false">Bisukan bunyi</button></div><p id="notificationStatus" role="status">Memeriksa dukungan notifikasi browser…</p><small>Notifikasi bekerja saat halaman dan layar tetap aktif.</small></div>
           <div id="events" aria-live="polite"><div class="empty-state"><svg class="empty-icon" viewBox="0 0 86 70" aria-hidden="true"><path d="m5 61 25-35 16 20 10-14 25 29H5Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M49 34V7m0 0 21 7-21 7M20 40l10 5 7-9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="17" r="7" fill="currentColor" opacity=".35"/></svg><h3>BELUM ADA KEJADIAN.</h3><p>Saat pola aktivitas perlu diperiksa, konfirmasi kondisi akan muncul di sini.</p><span class="empty-tag"><i class="status-dot"></i>Siap untuk saling menjaga</span></div></div>
         </section>
 

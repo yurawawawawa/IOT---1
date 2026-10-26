@@ -21,6 +21,8 @@ Hosting HTTPS hanya menyajikan HTML/CSS/JS HP. Hosting ini tidak menjalankan det
 
 BuddyCheck memeriksa urutan gerakan **setiap pengguna secara independen** dan memberikan peran timbal balik yang sama. Kedua HP bisa memiliki kejadian aktif bersamaan. Konfirmasi berlangsung melalui cloud dengan korelasi `event_id`.
 
+ID kelompok adalah ruang yang dibuat otomatis. Detector berlangganan `buddycheck/+/edge/+/telemetry` dan `buddycheck/+/commands/+`, lalu memilih engine terpisah berdasarkan ID pada topic. Kedua HP cukup menggunakan ID serta broker yang sama. `PROJECT_ID` dalam `.env` hanya menyediakan ID awal dashboard dan default pengirim Termux; bukan pembatas ruang detector. Jalankan satu instance detector untuk namespace broker ini agar snapshot tidak saling ditimpa oleh beberapa detector.
+
 ## Topik MQTT
 
 Namespace: `buddycheck/PROJECT_ID/`.
@@ -31,11 +33,13 @@ Namespace: `buddycheck/PROJECT_ID/`.
 | `edge/edge2/telemetry` | HP B | Detector | Tidak |
 | `commands/edge1` | HP A | Detector | Tidak |
 | `commands/edge2` | HP B | Detector | Tidak |
-| `commands/dashboard` | Dashboard, ARM/DISARM | Detector | Tidak |
+| `commands/dashboard` | Dashboard, JOIN/ARM/DISARM | Detector | Tidak |
 | `receipts/edge1`, `receipts/edge2`, `receipts/dashboard` | Detector | Pengirim perintah | Tidak |
 | `state` | Detector | Semua UI | Ya |
 
-Semua publish menggunakan QoS 1. Duplikasi telemetri disaring dengan boot ID dan sequence. Command memakai UUID dan cache deduplikasi. Pesan retained telemetri/perintah diabaikan agar aksi lama tidak berjalan saat subscribe. Last Will detector mengirim `service: OFFLINE` pada topik state.
+Semua publish menggunakan QoS 1. Duplikasi telemetri disaring dengan boot ID dan sequence per ruang. Command memakai UUID dan cache deduplikasi per ruang. Pesan retained telemetri/perintah diabaikan agar aksi lama tidak berjalan saat subscribe. State menyertakan `project_id`, `session_id`, dan `service_topic`; UI mengikuti Last Will pada `buddycheck/_service/SESSION_ID` untuk mendeteksi proses terputus. Saat berhenti normal, detector juga mengirim state OFFLINE ke setiap ruang.
+
+Browser mengirim perintah `JOIN` setelah subscribe dan setiap 30 detik selama terhubung. JOIN membuat ruang bila belum ada, termasuk untuk dashboard tanpa HP. Telemetri valid juga dapat membuat ruang agar pengirim lama tetap kompatibel. Maksimal 32 ruang disimpan bersamaan; ruang tanpa pesan masuk selama 15 menit dihapus dari memori. Jeda deteksi, kandidat gerakan, urutan pesan, cooldown, dan kejadian satu ruang tidak memengaruhi ruang lain. ID dibatasi 1–80 karakter `[A-Za-z0-9_-]` agar tidak menjadi wildcard MQTT.
 
 ## Telemetri
 

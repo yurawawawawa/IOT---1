@@ -8,6 +8,6 @@ if not target.exists():
     text = (root / ".env.example").read_text(encoding="utf-8")
     text = text.replace("buddycheck_ganti_dengan_id_kelompok", "buddycheck_" + secrets.token_hex(4))
     target.write_text(text, encoding="utf-8")
-    print(".env dibuat dengan PROJECT_ID unik. Samakan ID ini di kedua HP.")
+    print(".env dibuat dengan ID awal dashboard. Kedua HP boleh memakai ID ruang lain yang sama.")
 else:
     print(".env sudah ada; konfigurasi dipertahankan.")

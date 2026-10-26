@@ -98,6 +98,21 @@ class EngineTests(unittest.TestCase):
         self.engine.accept(reading, self.clock)
         with self.assertRaises(ValueError): self.engine.accept(reading, self.clock)
 
+    def test_retired_sender_does_not_break_detection_for_current_session(self):
+        self.feed()
+        self.feed(boot="newboot", impact=True)
+        for _ in range(6):
+            with self.assertRaises(ValueError): self.feed(boot="boot1", step=100)
+            self.feed(boot="newboot", step=900)
+        self.assertEqual(next(iter(self.engine.events.values()))["status"], "CHECK_BUDDY")
+
+    def test_detector_restart_accepts_existing_phone_session(self):
+        self.feed()
+        self.engine = BuddyCheck()
+        self.feed(impact=True)
+        for _ in range(6): self.feed()
+        self.assertEqual(len(self.engine.events), 1)
+
     def test_old_timestamp_rejected(self):
         reading = self.reading()
         with self.assertRaises(ValueError): self.engine.accept(reading, self.clock + 16000)

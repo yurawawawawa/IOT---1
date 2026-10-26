@@ -36,7 +36,17 @@
     if (event.subject === actor && event.status === "AWAITING_REPLY") return ["SAFE", "NEED_HELP"];
     return [];
   }
-  const api = { features, actions };
+  function notificationType(event, actor, previousStatus, initialSnapshot = false) {
+    if (actor === "dashboard" || event.status === previousStatus) return null;
+    if (event.subject === actor && event.status === "AWAITING_REPLY") return "request";
+    if (event.buddy !== actor) return null;
+    if (event.status === "CHECK_BUDDY") return "buddy";
+    if (event.status === "NEED_HELP" || event.status === "NO_RESPONSE") return "urgent";
+    // Completed history received on connect is not a new incoming message.
+    if (event.status === "SAFE" && !initialSnapshot) return "safe";
+    return null;
+  }
+  const api = { features, actions, notificationType };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BuddyCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

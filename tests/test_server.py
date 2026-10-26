@@ -8,9 +8,21 @@ from shared.dashboard_server import public_browser_config, start_dashboard_serve
 
 
 class DashboardTests(TestCase):
+    def test_two_detectors_cannot_share_dashboard_port(self):
+        with patch.dict(os.environ, {"DASHBOARD_HOST": "127.0.0.1"}):
+            server, thread = start_dashboard_server(port=0)
+            try:
+                with self.assertRaises(OSError):
+                    start_dashboard_server(port=server.server_port)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+
     def test_browser_config_never_exposes_server_credentials(self):
         with patch.dict(os.environ, {"PROJECT_ID": "private_test", "MQTT_USERNAME": "private-user", "MQTT_PASSWORD": "test-secret"}):
             config = public_browser_config()
+            self.assertEqual(config["room_mode"], "multi")
             self.assertFalse(config["automatic_connection"])
             serialized = json.dumps(config)
             self.assertNotIn("test-secret", serialized)

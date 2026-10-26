@@ -21,6 +21,13 @@
   let state = null, lastState = 0, serverOffset = 0, eventSignature = "";
   let samples = [], lastSample = 0, lastAcceptedSample = 0, sensorStartedAt = 0;
   let accelCount = 0, gyroCount = 0, motionCount = 0, wakeLock = null, audio = null;
+  let soundEnabled = true;
+  let serviceTopic = "", joinCommandId = "", lastJoinAt = 0, joinedRoom = false;
+  let staleStateNotice = false;
+  const vibrationPatterns = {
+    request:[350,120,350,120,650], buddy:[250,120,250],
+    urgent:[500,160,500,160,750], safe:[120,80,120],
+  };
   const pending = new Map(), notices = new Map(), history = {edge1:[],edge2:[]};
   const emptyEvents = $("events").innerHTML;
   let lastSequences = {}, logLines = [];
@@ -29,9 +36,11 @@
   $(isPhone ? "phoneLink" : "dashboardLink").classList.add("active");
   $("roleLabel").hidden = !isPhone;
   $("sensorPanel").hidden = !isPhone;
+  $("notificationControls").hidden = !isPhone;
   if (!isPhone) {
     $("startButton").innerHTML = 'Hubungkan dashboard <span>↗</span>';
-    $("sensorHint").textContent = "Dashboard memantau kedua HP. Jalankan detector Python di laptop, lalu hubungkan ke ID kelompok yang sama.";
+    $("sensorHint").textContent = "Detector menerima ruang baru secara otomatis. Masukkan ID kelompok kedua HP untuk memantau ruang tersebut.";
+    $("projectHelp").textContent = "Pilih ID yang dipakai kedua HP. ID tidak harus sama dengan nilai awal di .env.";
   }
   if (params.get("role") === "edge2") $("role").value = "edge2";
   if (/^[A-Za-z0-9_-]{1,80}$/.test(params.get("project") || "")) $("project").value = params.get("project");
@@ -58,20 +67,59 @@
   function liveService() {
     return connected && state?.service === "ONLINE" && performance.now() - lastState < 5000;
   }
-  function tone() {
-    if (navigator.vibrate) navigator.vibrate([180, 80, 180]);
-    if (!audio || audio.state !== "running") return;
-    const oscillator = audio.createOscillator(), gain = audio.createGain();
-    oscillator.frequency.value = 660;
-    gain.gain.setValueAtTime(0.08, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.35);
-    oscillator.connect(gain); gain.connect(audio.destination);
-    oscillator.start(); oscillator.stop(audio.currentTime + 0.35);
+  function prepareAudio() {
+    if (!isPhone || !soundEnabled) return Promise.resolve();
+    try {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) return Promise.resolve();
+      if (!audio || audio.state === "closed") audio = new Audio();
+      return audio.resume().catch(() => {}).finally(updateNotificationStatus);
+    } catch { return Promise.resolve(); }
+  }
+  function vibrate(pattern) {
+    try { return typeof navigator.vibrate === "function" && navigator.vibrate(pattern) !== false; }
+    catch { return false; }
+  }
+  function updateNotificationStatus() {
+    if (!isPhone) return;
+    const vibration = typeof navigator.vibrate === "function" ? "Getar browser tersedia." : "Getar tidak tersedia di browser ini.";
+    const sound = !soundEnabled ? "Bunyi dibisukan." : audio?.state === "running" ? "Bunyi aktif; pastikan volume HP terdengar." : "Tekan Tes bunyi & getar untuk mengaktifkan bunyi.";
+    $("notificationStatus").textContent = `${vibration} ${sound} Pemberitahuan visual tetap tampil.`;
+  }
+  function tone(kind = "request") {
+    const accepted = vibrate(vibrationPatterns[kind] || vibrationPatterns.request);
+    if (audio?.state === "running" && soundEnabled) {
+      try {
+        const notes = kind === "request" || kind === "urgent" ? [740,880,740] : [660,780];
+        notes.forEach((frequency,index) => {
+          const startAt = audio.currentTime + index * 0.23;
+          const oscillator = audio.createOscillator(), gain = audio.createGain();
+          oscillator.frequency.value = frequency;
+          gain.gain.setValueAtTime(0.001,startAt);
+          gain.gain.exponentialRampToValueAtTime(0.12,startAt + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001,startAt + 0.18);
+          oscillator.connect(gain); gain.connect(audio.destination);
+          oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+          oscillator.start(startAt); oscillator.stop(startAt + 0.2);
+        });
+      } catch { /* The visual request remains usable if audio is blocked. */ }
+    }
+    updateNotificationStatus();
+    return accepted;
   }
   function rememberLinks() {
     ["phone", "dashboard"].forEach((mode) => {
       const query = new URLSearchParams({view:mode,project:$("project").value,broker:$("broker").value});
       $(mode === "phone" ? "phoneLink" : "dashboardLink").href = "?" + query;
+    });
+  }
+  function joinRoom() {
+    if (!active || !connected || !client) return;
+    joinCommandId = id(); lastJoinAt = performance.now();
+    client.publish(`buddycheck/${project}/commands/${actor}`,JSON.stringify({
+      command_id:joinCommandId,action:"JOIN",actor,sent_at_ms:Date.now(),
+    }),{qos:1,retain:false},(error) => {
+      if (error) { notice("Belum bisa bergabung ke ruang: " + error.message); log("JOIN gagal: " + error.message); }
     });
   }
   function lockSetup(lock) {
@@ -96,6 +144,8 @@
     starting = true;
     $("startButton").disabled = true;
     try {
+      // Unlock sound within the same user click, before awaiting motion permission.
+      void prepareAudio();
       // Permission must be requested directly from the user's click, before unrelated awaits.
       if (isPhone && typeof DeviceMotionEvent.requestPermission === "function") {
         if (await DeviceMotionEvent.requestPermission() !== "granted") throw new Error("Izin sensor gerak ditolak.");
@@ -105,18 +155,18 @@
       bootId = id(); sequence = 0; sent = 0; accelCount = gyroCount = motionCount = 0;
       samples = []; lastSample = lastAcceptedSample = 0;
       state = null; lastState = 0; eventSignature = "";
+      serviceTopic = ""; joinCommandId = ""; lastJoinAt = 0; joinedRoom = false;
+      staleStateNotice = false;
       notices.clear(); history.edge1 = []; history.edge2 = []; lastSequences = {};
       active = true; sensorStartedAt = performance.now();
       notice(""); lockSetup(true); rememberLinks();
-      try {
-        const Audio = window.AudioContext || window.webkitAudioContext;
-        if (Audio && isPhone) { audio = new Audio(); audio.resume().catch(() => {}); }
-      } catch { /* Visual alerts remain available. */ }
+      $("roomSummary").hidden = false;
+      $("roomSummary").textContent = `Ruang: ${project} · ${isPhone ? deviceName(actor) : "Dashboard"}`;
+      $("sessionLabel").textContent = `${isPhone ? deviceName(actor) : "DASHBOARD"} / ${project}`;
       if (isPhone) {
         window.addEventListener("devicemotion", onMotion);
         if (navigator.wakeLock) navigator.wakeLock.request("screen").then((lock) => wakeLock = lock).catch(() => {});
         $("heroDescription").textContent = `${deviceName(actor)} siap saling menjaga. Selamat melangkah!`;
-        $("sessionLabel").textContent = `${deviceName(actor)} / LIVE CHECK-IN`;
       }
       client = mqtt.connect(broker, {
         clientId:`bc-${actor}-${id().slice(0,12)}`, protocolVersion:4,
@@ -125,8 +175,10 @@
       });
       client.on("connect", () => {
         connected = true;
+        lastJoinAt = performance.now();
         client.subscribe([`buddycheck/${project}/state`,`buddycheck/${project}/receipts/${actor}`], {qos:1}, (error) => {
           if (error) notice("Gagal subscribe: " + error.message);
+          else joinRoom();
         });
         samples = []; lastSample = lastAcceptedSample = 0;
         notice(""); log(`MQTT tersambung · ${actor === "dashboard" ? "Dashboard" : deviceName(actor)} · ${project}`);
@@ -148,8 +200,12 @@
     if (client) { client.end(true); client = null; }
     if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
     if (audio) { audio.close().catch(() => {}); audio = null; }
+    if (isPhone) vibrate(0);
+    updateNotificationStatus();
     pending.forEach((entry) => clearTimeout(entry.timer)); pending.clear();
     lockSetup(false); eventSignature = "";
+    $("roomSummary").hidden = true;
+    serviceTopic = ""; joinCommandId = ""; joinedRoom = false;
     refresh(); log("Koneksi dihentikan.");
   }
 
@@ -184,23 +240,48 @@
     try { payload = JSON.parse(bytes.toString()); } catch { return; }
     if (!payload || typeof payload !== "object") return;
     if (topic.endsWith(`/receipts/${actor}`)) {
+      if (payload.kind === "telemetry" && payload.code === "SENSOR_SESSION_CONFLICT") {
+        if (!isPhone || payload.project_id !== project || payload.boot_id !== bootId) return;
+        const message = `Sesi ${deviceName(actor)} digantikan sesi lain. Tutup tab sensor lain, pastikan satu HP memilih HP A dan satunya HP B, lalu tekan Mulai lagi.`;
+        stop(); notice(message); log(message);
+        return;
+      }
+      if (payload.command_id === joinCommandId) {
+        if (!payload.ok) notice(`Belum bisa bergabung: ${payload.reason || "Detector belum menerima ruang ini."}`);
+        else if (!joinedRoom) { joinedRoom = true; log(`Bergabung ke ruang ${project}`); }
+        return;
+      }
       const entry = pending.get(payload.command_id);
       if (!entry) return;
       clearTimeout(entry.timer); pending.delete(payload.command_id);
       notice(payload.ok ? "Perintah diterima detector." : `Perintah ditolak: ${payload.reason || "Periksa status kejadian."}`, !!payload.ok);
       eventSignature = ""; renderEvents(); return;
     }
-    if (topic !== `buddycheck/${project}/state`) return;
+    if (serviceTopic && topic === serviceTopic) {
+      if (payload.session_id === state?.session_id && payload.service === "OFFLINE") {
+        state = {...state,service:"OFFLINE"}; eventSignature = "";
+        log("Detector ruang ini terputus."); refresh();
+      }
+      return;
+    }
+    if (topic !== `buddycheck/${project}/state` || (payload.project_id && payload.project_id !== project)) return;
     if (payload.service === "OFFLINE") {
       state = {...state,service:"OFFLINE"};
       eventSignature = ""; log("Detector berhenti atau terputus."); refresh(); return;
     }
     if (payload.service !== "ONLINE" || !Number.isFinite(payload.at_ms) || !payload.devices || !Array.isArray(payload.events)) return;
-    if (Math.abs(Date.now() - payload.at_ms) > 15000) { notice("State detector kedaluwarsa atau jam perangkat berbeda. Jalankan detector dan sinkronkan jam laptop/HP."); return; }
+    if (Math.abs(Date.now() - payload.at_ms) > 15000) { notice("State detector kedaluwarsa atau jam perangkat berbeda. Jalankan detector dan sinkronkan jam laptop/HP."); staleStateNotice = true; return; }
+    if (staleStateNotice) { notice(""); staleStateNotice = false; }
+    const initialSnapshot = !state?.session_id || state.session_id !== payload.session_id;
     if (state?.session_id && state.session_id !== payload.session_id) {
       notices.clear(); log("Detector memulai sesi baru; riwayat sebelumnya berakhir.");
     }
     state = payload; lastState = performance.now(); serverOffset = payload.at_ms - Date.now();
+    if (/^buddycheck\/_service\/[a-f0-9]{32}$/.test(payload.service_topic || "") && serviceTopic !== payload.service_topic) {
+      if (serviceTopic) client.unsubscribe(serviceTopic);
+      serviceTopic = payload.service_topic;
+      client.subscribe(serviceTopic,{qos:1},(error) => { if (error) log("Status koneksi detector belum tersambung: " + error.message); });
+    }
     ["edge1","edge2"].forEach((device) => {
       const reading = payload.devices[device]?.telemetry;
       if (!reading || !Number.isFinite(reading.motion_rms)) return;
@@ -215,11 +296,8 @@
       const previous = notices.get(event.event_id);
       if (previous !== event.status) {
         notices.set(event.event_id,event.status);
-        const relevant = isPhone && (
-          (event.buddy === actor && ["CHECK_BUDDY","SAFE","NEED_HELP","NO_RESPONSE"].includes(event.status)) ||
-          (event.subject === actor && event.status === "AWAITING_REPLY")
-        );
-        if (relevant) { tone(); log(`${eventLabels[event.status]} · ${deviceName(event.subject)}`); }
+        const kind = isPhone && BuddyCore.notificationType(event,actor,previous,initialSnapshot);
+        if (kind) { tone(kind); log(`${eventLabels[event.status]} · ${deviceName(event.subject)}`); }
       }
     }
     refresh();
@@ -236,6 +314,10 @@
     $("pairDot").classList.toggle("online",onlineCount === 2);
     $("monitorButton").disabled = !live || pending.size > 0;
     $("monitorButton").textContent = state?.armed === false ? "Lanjutkan deteksi" : "Jeda deteksi";
+    const incoming = isPhone && live && (state?.events || []).slice().reverse().find((event) => event?.subject === actor && event.status === "AWAITING_REPLY");
+    $("incomingRequest").hidden = !incoming;
+    $("incomingRequest").dataset.eventId = incoming?.event_id || "";
+    if (incoming) $("incomingRequestText").textContent = `${deviceName(incoming.buddy)} meminta kabarmu. Buka kartu kejadian untuk menjawab.`;
     if (live && state.config) $("thresholdInfo").textContent = `Peak ≥ ${state.config.impact_peak} m/s² · Diam ${state.config.still_seconds} detik`;
     ["edge1","edge2"].forEach((device) => {
       const data = state?.devices?.[device], reading = data?.telemetry;
@@ -283,6 +365,8 @@
       const card = document.createElement("article");
       const severity = ["NEED_HELP","NO_RESPONSE"].includes(event.status) ? "danger" : ["CHECK_BUDDY","AWAITING_REPLY"].includes(event.status) ? "warning" : "";
       card.className = `event-card ${severity}`;
+      card.dataset.eventId = event.event_id;
+      if (event.subject === actor && event.status === "AWAITING_REPLY") card.classList.add("incoming-event");
       let explanation = `${deviceName(event.subject)} perlu dicek oleh ${deviceName(event.buddy)}.`;
       if (event.status === "AWAITING_REPLY") explanation = event.subject === actor ? "Temanmu meminta kabar. Bagaimana kondisimu sekarang?" : `Permintaan terkirim ke ${deviceName(event.subject)}. Menunggu jawaban pengguna.`;
       if (event.status === "SAFE") explanation = `${deviceName(event.subject)} sudah mengonfirmasi bahwa dirinya aman.`;
@@ -327,6 +411,25 @@
   $("stopButton").addEventListener("click",stop);
   $("monitorButton").addEventListener("click",() => send(state?.armed ? "DISARM" : "ARM"));
   $("clearLog").addEventListener("click",() => { logLines = []; $("log").replaceChildren(); });
+  $("testNotification").addEventListener("click",async () => {
+    await prepareAudio();
+    const accepted = tone("request");
+    const result = accepted ? "Pola getar dikirim. Periksa apakah HP terasa bergetar." : "Getar tidak tersedia atau ditolak browser. Gunakan bunyi dan pemberitahuan visual.";
+    $("notificationStatus").textContent = `${result} ${soundEnabled ? "Jika bunyi belum terdengar, periksa volume HP." : "Bunyi sedang dibisukan."}`;
+  });
+  $("soundToggle").addEventListener("click",() => {
+    soundEnabled = !soundEnabled;
+    $("soundToggle").setAttribute("aria-pressed",String(!soundEnabled));
+    $("soundToggle").textContent = soundEnabled ? "Bisukan bunyi" : "Aktifkan bunyi";
+    if (soundEnabled) void prepareAudio();
+    updateNotificationStatus();
+  });
+  $("viewRequest").addEventListener("click",() => {
+    const card = [...$("events").querySelectorAll(".event-card")].find((node) => node.dataset.eventId === $("incomingRequest").dataset.eventId);
+    if (!card) return;
+    card.scrollIntoView({behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",block:"center"});
+    card.querySelector("button")?.focus({preventScroll:true});
+  });
   $("project").addEventListener("change",rememberLinks);
   $("broker").addEventListener("change",rememberLinks);
   document.addEventListener("visibilitychange",() => {
@@ -335,6 +438,7 @@
   });
   window.addEventListener("pagehide",() => { if (active) stop(); });
   setInterval(() => {
+    if (active && connected && performance.now() - lastJoinAt >= 30000) joinRoom();
     refresh();
     document.querySelectorAll("[data-expires]").forEach((node) => {
       const seconds = Math.max(0,Math.ceil((Number(node.dataset.expires) - Date.now() - serverOffset) / 1000));
@@ -350,5 +454,6 @@
     rememberLinks();
     // Sensor permission is always requested through a user click on the phone.
   }).catch(() => {}).finally(() => clearTimeout(setupTimeout));
+  updateNotificationStatus();
   refresh();
 })();
