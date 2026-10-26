@@ -1,0 +1,5 @@
+{
+  "project_id": "",
+  "websocket_url": "wss://broker.hivemq.com:8884/mqtt",
+  "automatic_connection": false
+}

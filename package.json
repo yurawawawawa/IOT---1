@@ -1,0 +1,19 @@
+{
+  "name": "buddycheck-iot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Development checks for the BuddyCheck static phone/dashboard UI",
+  "scripts": {
+    "vendor": "node scripts/vendor.cjs",
+    "test": "node --test tests/core.test.cjs",
+    "test:visual": "node scripts/preview_design.cjs",
+    "test:integration": "node tests/integration.cjs"
+  },
+  "devDependencies": {
+    "mqtt": "5.16.1",
+    "aedes": "0.51.3",
+    "ws": "^8.18.3",
+    "playwright": "^1.56.1"
+  },
+  "engines": { "node": ">=20" }
+}

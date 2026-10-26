@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#263f34">
+  <meta name="description" content="Teman seperjalanan, selalu dalam jangkauan. BuddyCheck menghubungkan dua pendaki melalui aktivitas sensor dan konfirmasi kondisi dua arah.">
+  <title>BuddyCheck — Teman di setiap langkah</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="preload" href="./fonts/anton-regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="./assets/hiking-hero.webp" as="image">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./vendor/mqtt.min.js"></script>
+  <script defer src="./core.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="BuddyCheck beranda"><img src="./icon.svg" width="40" height="40" alt=""><span>BuddyCheck<span class="brand-dot">✳</span><small>YOUR TRAIL COMPANION</small></span></a>
+    <nav aria-label="Tampilan"><a id="dashboardLink" href="?view=dashboard">Dashboard</a><a id="phoneLink" href="?view=phone">HP Edge <span aria-hidden="true">↗</span></a></nav>
+    <span id="connectionBadge" class="badge"><i></i>Belum terhubung</span>
+  </header>
+
+  <main>
+    <section class="hero" aria-label="BuddyCheck hiking companion">
+      <img class="hero-art" src="./assets/hiking-hero.webp" width="1536" height="1024" fetchpriority="high" alt="Ilustrasi dua pendaki menyusuri jalur hijau dengan pemandangan pegunungan vulkanik saat matahari terbit.">
+      <div class="hero-topline"><span>OUT THERE, TOGETHER.</span><span>ACTIVITY & BUDDY CHECK-IN</span></div>
+      <div class="hero-heading"><h1 id="heroTitle">BUDDYCHECK</h1><p id="heroDescription" class="hero-copy">Jauh melangkah. Tetap saling menjaga.</p></div>
+      <div class="trail-stamp" aria-hidden="true"><span>LEAVE NO</span><svg viewBox="0 0 70 40" fill="none"><path d="m4 34 19-26 11 14L45 5l21 29H4Z" stroke="currentColor" stroke-width="2.7"/><path d="m15 19 8 3 6-6M37 17l8 4 6-6" stroke="currentColor" stroke-width="2.7"/></svg><span>BUDDY BEHIND</span></div>
+      <div class="hero-bottom"><div class="trail-note"><span class="compass-mark" aria-hidden="true">✳</span><p>Teman seperjalanan.<br><strong>Selalu dalam jangkauan.</strong></p></div><div class="pair-caption"><span class="status-dot" id="pairDot"></span><span id="pairCaption">Menunggu dua perangkat</span><span aria-hidden="true">↗</span></div></div>
+    </section>
+
+    <div class="trail-strip" aria-label="Dua perangkat, saling terhubung, konfirmasi dua arah"><span>DUA PERANGKAT</span><i aria-hidden="true">✳</i><span>SALING TERHUBUNG</span><i aria-hidden="true">✳</i><span>KONFIRMASI DUA ARAH</span><i class="last-flower" aria-hidden="true">✳</i></div>
+
+    <section class="station-heading"><div><p class="eyebrow">YOUR BUDDY, ONE CHECK AWAY</p><h2>POS PANTAU<span>.</span></h2></div><p>Cek koneksi. Pantau aktivitas.<br>Pastikan kabar teman seperjalanan.</p><span id="sessionLabel" class="station-tag">BASECAMP / LIVE CHECK-IN</span></section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div class="workspace">
+      <aside class="setup-column">
+        <section class="panel setup-panel">
+          <div class="section-heading"><div><p class="eyebrow">SIAPKAN PERJALANAN</p><h2>Hubungkan perangkat</h2></div><span class="step-number">01</span></div>
+          <form id="setupForm">
+            <label id="roleLabel">Perangkat ini<select id="role"><option value="edge1">HP A — Pengguna pertama</option><option value="edge2">HP B — Pengguna kedua</option></select></label>
+            <label>ID kelompok<input id="project" placeholder="buddycheck_kelompok_07" required pattern="[A-Za-z0-9_-]{1,80}" maxlength="80" autocomplete="off"><small>Samakan ID pada kedua HP dan laptop.</small></label>
+            <label>MQTT WebSocket URL<input id="broker" type="url" value="wss://broker.hivemq.com:8884/mqtt" required spellcheck="false"></label>
+            <details id="privateBroker"><summary>Broker dengan akun</summary><label>Username<input id="username" autocomplete="username"></label><label>Password<input id="password" type="password" autocomplete="off"></label></details>
+            <p id="sensorHint" class="setup-hint">Buka melalui <strong>HTTPS</strong> di HP, izinkan sensor gerak, dan biarkan layar serta tab tetap aktif.</p>
+            <button id="startButton" type="submit" class="button primary full">Mulai sensor & hubungkan <span>↗</span></button>
+            <button id="stopButton" type="button" class="button secondary full" hidden>Putuskan koneksi</button>
+          </form>
+          <p class="privacy-note">Broker publik dipakai bersama. Gunakan ID unik; jangan kirim nama, lokasi, atau data pribadi.</p>
+        </section>
+
+        <section id="sensorPanel" class="panel sensor-panel">
+          <div class="section-heading"><h2>Sensor perangkat ini</h2><span class="badge physical">FISIK</span></div>
+          <p id="sensorStatus" class="muted">Sensor belum dimulai.</p>
+          <dl class="sensor-list"><div><dt>Accelerometer</dt><dd id="accelCount">0 sampel</dd></div><div><dt>Gyroscope</dt><dd id="gyroCount">0 sampel</dd></div><div><dt>MQTT terkirim</dt><dd id="sentCount">0 pesan</dd></div></dl>
+          <p class="microcopy">Hanya pembacaan sensor asli yang dikirim dari halaman ini.</p>
+        </section>
+
+        <section class="guide-card"><svg class="guide-mountain" viewBox="0 0 220 80" aria-hidden="true"><path d="m0 75 50-57 31 34 29-43 57 66H0Zm119 0 35-42 24 25 17-22 25 39" fill="none" stroke="currentColor" stroke-width="2"/><path d="m33 38 17 8 13-13M97 27l14 10 10-11" fill="none" stroke="currentColor" stroke-width="2"/></svg><p class="eyebrow">THE BUDDY RULE</p><h3>LANGKAH BEDA.<br>TETAP BERSAMA.</h3><p>Deteksi memicu pengecekan. Jawaban temanmu yang mengonfirmasi kondisinya.</p><span class="guide-bottom">LOOK OUT FOR EACH OTHER <span aria-hidden="true">↗</span></span></section>
+      </aside>
+
+      <div class="main-column">
+        <section class="panel overview">
+          <div class="section-heading"><div><p class="eyebrow">TRAIL ACTIVITY / LIVE</p><h2>Aktivitas perangkat</h2></div><button id="monitorButton" class="button small secondary" disabled>Jeda deteksi</button></div>
+          <div class="overview-meta"><span id="detectorStatus"><i class="status-dot"></i>Detector belum terhubung</span><span id="updateTime">Menunggu data</span></div>
+          <div id="devices" class="device-grid"></div>
+          <div class="legend"><span><i class="legend-line"></i>Intensitas gerakan (RMS)</span><span id="thresholdInfo">Lonjakan → rotasi → diam → cek teman</span></div>
+        </section>
+
+        <section class="panel events-panel">
+          <div class="section-heading"><div><p class="eyebrow">CHECK IN. KEEP GOING.</p><h2>Konfirmasi kondisi</h2></div><span id="eventCount" class="count-pill">0 kejadian</span></div>
+          <div id="events" aria-live="polite"><div class="empty-state"><svg class="empty-icon" viewBox="0 0 86 70" aria-hidden="true"><path d="m5 61 25-35 16 20 10-14 25 29H5Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M49 34V7m0 0 21 7-21 7M20 40l10 5 7-9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="17" r="7" fill="currentColor" opacity=".35"/></svg><h3>BELUM ADA KEJADIAN.</h3><p>Saat pola aktivitas perlu diperiksa, konfirmasi kondisi akan muncul di sini.</p><span class="empty-tag"><i class="status-dot"></i>Siap untuk saling menjaga</span></div></div>
+        </section>
+
+        <section class="panel log-panel"><div class="section-heading"><div><p class="eyebrow">FIELD NOTES</p><h2>Catatan koneksi</h2></div><button id="clearLog" class="text-button">Bersihkan ↗</button></div><ol id="log" class="log-list"><li>Menunggu koneksi perangkat.</li></ol></section>
+      </div>
+    </div>
+
+    <footer class="site-footer"><div class="footer-message"><p class="eyebrow">EVERY ADVENTURE IS BETTER TOGETHER.</p><p class="footer-title">SAMPAI PUNCAK.<br><span>TETAP BERSAMA.</span></p><span class="footer-flower" aria-hidden="true">✳</span></div><div class="footer-meta"><a class="footer-brand" href="./">BuddyCheck.</a><span>2 edge devices · Accelerometer + Gyroscope · MQTT Cloud</span><span>BUILT FOR THE BUDDY SYSTEM</span></div></footer>
+  </main>
+</body>
+</html>
